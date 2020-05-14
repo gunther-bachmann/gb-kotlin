@@ -35,6 +35,8 @@
 (require 'dash)
 (require 'helm)
 
+(require 'el-mock)
+
 (defun gb/kotlin--file-imports-all (file)
   "get all kotlin import lines for the given file"
   (split-string
@@ -47,30 +49,52 @@
    "\n"))
 
 (defun gb/kotlin--import-line-to-standard-fqn-id-pair (import-line)
-    "transform 'import <fqn> (as id)?' to (id . fqn)"
-  (cond ((s-matches? "^import [^ ]+ as [^ ]+" import-line)
-         (let* ((fqn-n-id (s-split " as " (s-chop-prefix "import " import-line)))
+  "transform 'import <fqn> (as id)?' to (id . fqn)"
+  (cond ((s-matches? "^import [^ /]+ +as +[^ /]+" import-line)
+         (let* ((fqn-n-id (s-split " +as +" (s-chop-prefix "import " import-line)))
                 (fqn (car fqn-n-id))
                 (id (gb/kotlin--get-id-from-fqn fqn)))
            (cons id fqn)))
-        ((s-matches? "^import [^ ]*" import-line)
+        ((s-matches? "^import [^ /]+" import-line)
          (let* ((fqn (car (s-split "[^a-ZA-Z_.]" (s-chop-prefix "import " import-line))))
                 (id (gb/kotlin--get-id-from-fqn fqn)))
            (cons id fqn)))
         (t nil)))
 
+(ert-deftest --import-line-to-fqn-id-pair ()
+  (should (equal '("c" . "a.b.c") (gb/kotlin--import-line-to-standard-fqn-id-pair "import a.b.c")))
+  (should (equal '("some" . "some") (gb/kotlin--import-line-to-standard-fqn-id-pair "import some")))
+  (should (equal '("Total" . "org.basic.Total") (gb/kotlin--import-line-to-standard-fqn-id-pair "import org.basic.Total")))
+  (should (equal '("c" . "a.b.c") (gb/kotlin--import-line-to-standard-fqn-id-pair "import a.b.c as d")))
+  (should (equal '("c" . "a.b.c") (gb/kotlin--import-line-to-standard-fqn-id-pair "import a.b.c // some comment")))
+  (should (equal '("d" . "a.b.c") (gb/kotlin--import-line-to-standard-fqn-id-pair "import a.b.c    as     doo   // comment")))
+  (should (equal nil (gb/kotlin--import-line-to-standard-fqn-id-pair "mport a.b.c")))
+  (should (equal nil (gb/kotlin--import-line-to-standard-fqn-id-pair "import // a.b.c")))
+  (should (equal nil (gb/kotlin--import-line-to-standard-fqn-id-pair "import  a.b.c"))))
+
 (defun gb/kotlin--import-line-to-fqn-id-pair (import-line)
   "transform 'import <fqn> (as id)?' to (id . fqn)"
-  (cond ((s-matches? "^import [^ ]+ +as +[^ ]+" import-line)
-         (let* ((fqn-n-id (s-split " as " (s-chop-prefix "import " import-line)))
+  (cond ((s-matches? "^import [^ /]+ +as +[^ /]+" import-line)
+         (let* ((fqn-n-id (s-split " +as +" (s-chop-prefix "import " import-line)))
                 (fqn (car fqn-n-id))
                 (id (car (s-split "[^a-ZA-Z_]" (cadr fqn-n-id)))))
            (cons id fqn)))
-        ((s-matches? "^import [^ ]*" import-line)
+        ((s-matches? "^import [^ /]+" import-line)
          (let* ((fqn (car (s-split "[^a-ZA-Z_.]" (s-chop-prefix "import " import-line))))
                 (id (gb/kotlin--get-id-from-fqn fqn)))
            (cons id fqn)))
         (t nil)))
+
+(ert-deftest --import-line-to-fqn-id-pair ()
+  (should (equal '("c" . "a.b.c") (gb/kotlin--import-line-to-fqn-id-pair "import a.b.c")))
+  (should (equal '("some" . "some") (gb/kotlin--import-line-to-fqn-id-pair "import some")))
+  (should (equal '("Total" . "org.basic.Total") (gb/kotlin--import-line-to-fqn-id-pair "import org.basic.Total")))
+  (should (equal '("d" . "a.b.c") (gb/kotlin--import-line-to-fqn-id-pair "import a.b.c as d")))
+  (should (equal '("c" . "a.b.c") (gb/kotlin--import-line-to-fqn-id-pair "import a.b.c // some comment")))
+  (should (equal '("doo" . "a.b.c") (gb/kotlin--import-line-to-fqn-id-pair "import a.b.c    as     doo   // comment")))
+  (should (equal nil (gb/kotlin--import-line-to-fqn-id-pair "mport a.b.c")))
+  (should (equal nil (gb/kotlin--import-line-to-fqn-id-pair "import // a.b.c")))
+  (should (equal nil (gb/kotlin--import-line-to-fqn-id-pair "import  a.b.c"))))
 
 (defun gb/kotlin--gradle-cache-read-fqns ()
   "read all fqns (by class) from gradle cache"
@@ -86,6 +110,10 @@
 (defun gb/kotlin--get-id-from-fqn (fqn)
   "split off last element of fqn"
   (car (reverse (s-split "\\." fqn))))
+
+(ert-deftest --get-id-from-fqn ()
+  (should (equal "id" (gb/kotlin--get-id-from-fqn "id")))
+  (should (equal "id" (gb/kotlin--get-id-from-fqn "a.bee.cee.id"))))
 
 (defun gb/kotlin--project-imports-all (folder)
   "get all kotlin imports for the given project root (ignoring any 'as' renames)"
@@ -107,6 +135,17 @@
           class-package-pairs)
     import-hash))
 
+(ert-deftest --import-hash-set-of ()
+  (let ((hashtable (gb/kotlin--import-hash-set-of
+                    '(("a" . "b.c.a")
+                      ("q" . "a.b.c.q")
+                      ("q" . "s.t.q")
+                      ("c" . "b.c")))))
+    (should (equal "b.c.a" (gethash "a" hashtable)))
+    (should (equal "b.c" (gethash "c" hashtable)))
+    (should (equal nil (gethash "d" hashtable)))
+    (should (equal '("s.t.q" "a.b.c.q") (gethash "q" hashtable)))))
+
 (defun gb/kotlin--import-hash-add (key value hash)
   "add a key value pair to the import hash"
   (let* ((existing-value (gethash key hash))
@@ -122,12 +161,36 @@
           (t t)))
   hash)
 
+(ert-deftest --import-hash-add ()
+  (let ((hashtable (gb/kotlin--import-hash-set-of
+                    '(("q" . "a.b.c.q")))))
+    (should (equal "a.c.d"
+                   (progn (gb/kotlin--import-hash-add "a" "a.c.d" hashtable)
+                          (gethash "a" hashtable))))
+    (should (equal '("s.t.q" "a.b.c.q")
+                   (progn (gb/kotlin--import-hash-add "q" "s.t.q" hashtable)
+                          (gethash "q" hashtable))))))
+
 (defun gb/kotlin--import-hash-contains (key value hash)
   "does the hash with import ids contain the given key value combination?"
   (let* ((existing-value (gethash key hash)))
     (or (and (listp existing-value)
           (--some (equal value it) existing-value))
        (equal value existing-value))))
+
+(ert-deftest --import-hash-contains ()
+  (let ((hashtable (gb/kotlin--import-hash-set-of
+                    '(("a" . "b.c.a")
+                      ("q" . "a.b.c.q")
+                      ("q" . "s.t.q")
+                      ("c" . "b.c")))))
+    (should (gb/kotlin--import-hash-contains "a" "b.c.a" hashtable))
+    (should-not (gb/kotlin--import-hash-contains "b" "b.c.a" hashtable))
+    (should-not (gb/kotlin--import-hash-contains "a" "b.c.b" hashtable))
+    (should (gb/kotlin--import-hash-contains "q" "a.b.c.q" hashtable))
+    (should (gb/kotlin--import-hash-contains "q" "s.t.q" hashtable))
+    (should-not (gb/kotlin--import-hash-contains "q" "a.b.q" hashtable))
+    (should-not (gb/kotlin--import-hash-contains "s" "a.b.c.q" hashtable))))
 
 ;; (setq import-hash (gb/kotlin--import-hash-set-of (gb/kotlin--project-imports-all "~/repo/otto/eins/rule-processor")))
 
@@ -278,15 +341,34 @@
    '("AfterEach" "org.junit.jupiter.api.AfterEach"))
   "all imports provided if junit / jupiter is wanted in the project")
 
+(defun gb/kotlin--in-kotlin-mode ()
+  "currently in kotlin mode?"
+  (eq 'kotlin-mode major-mode))
+
 (defun gb/kotlin--import-candidates-at-point ()
   "get import candidates for given word at point"
   (let* ((git-dir (magit-gitdir)))
-    (when (and git-dir (eq 'kotlin-mode major-mode))
+    (when (and git-dir (gb/kotlin--in-kotlin-mode))
       (let* ((import-hash (gb/kotlin--import-hash-set-of
                            (gb/kotlin--project-imports-all
                             (format "%s/.." git-dir))))
              (word-ap (word-at-point)))
         (gethash word-ap import-hash)))))
+
+(ert-deftest --import-candidates-at-point ()
+  (with-mock
+    (stub gb/kotlin--project-imports-all => '(("a" . "c.b.a") ("b" . "b") ("b" . "c.b")))
+    (stub magit-gitdir => "some")
+    (stub gb/kotlin--in-kotlin-mode => t)
+
+    (stub word-at-point => "a")
+    (should (equal "c.b.a" (gb/kotlin--import-candidates-at-point)))
+
+    (stub word-at-point => "b")
+    (should (equal '("c.b" "b") (gb/kotlin--import-candidates-at-point)))
+
+    (stub word-at-point => "c")
+    (should (equal nil (gb/kotlin--import-candidates-at-point)))))
 
 (defun gb/kotlin--insert-on-first-import-line (fqn)
   "insert import for fqn at the first possible import position"
@@ -342,7 +424,6 @@
         (setq id-fqn-pairs (cons (gb/kotlin--import-line-to-fqn-id-pair line) id-fqn-pairs))))
     id-fqn-pairs))
 
-
 (defun gb/kotlin--get-buffer-package ()
   "get package fqn of current buffer"
   (save-excursion
@@ -368,11 +449,11 @@
         (cond ((not result)
                (setq result (cons elt result)))
               ((and result
-                  (not (string-equal fqn (cdar result))))
+                    (not (string-equal fqn (cdar result))))
                (setq result (cons elt result)))
               ((and result
-                  (string-equal fqn (cdar result))
-                  (not (string-equal (caar result) id)))
+                    (string-equal fqn (cdar result))
+                    (not (string-equal (caar result) id)))
                ;; (message "collision")
                (setq result (cons (if (string= id (gb/kotlin--get-id-from-fqn fqn))
                                       (car result)
@@ -400,7 +481,7 @@
   "remove all candidates that share the given package"
   (let ((result (list)))
     (cond ((and candidates
-              (listp candidates))
+                (listp candidates))
            (seq-doseq (elt candidates)
              (when (not (string= package (gb/kotlin--get-package-of-fqn elt)))
                (setq result (cons elt result)))))
@@ -451,22 +532,22 @@
   (interactive)
   (gb/kotlin--insert-all-on-first-import-line
    (--map (cadr it)
-         (append gb/kotlin--mockk-imports
-                 gb/kotlin--assertj-imports
-                 gb/kotlin--junit-jupiter-imports))))
+          (append gb/kotlin--mockk-imports
+                  gb/kotlin--assertj-imports
+                  gb/kotlin--junit-jupiter-imports))))
 
 (defun gb/kotlin-import-stdlib-insert ()
   "insert all imports deemd handy, make sure to cleanup (e.g. via spotlessApply)"
   (interactive)
   (gb/kotlin--insert-all-on-first-import-line
    (--map (cadr it)
-         (append gb/kotlin--kotlin-imports
-                 gb/kotlin--java-stdlib-imports))))
+          (append gb/kotlin--kotlin-imports
+                  gb/kotlin--java-stdlib-imports))))
 
 (defun gb/kotlin-rewrite-import-region ()
   "rewrite import statements, sort, removing duplicates and (naive) checking symbol usage"
   (interactive)
-  (if (eq 'kotlin-mode major-mode)
+  (if (gb/kotlin--in-kotlin-mode)
       (save-excursion
         (goto-char (point-min))
         (let ((imported-id-fqn-pairs (gb/kotlin--buffer-uniq-sorted-all-id-fqn-pairs)))
@@ -479,7 +560,7 @@
             (let* ((end (point)))
               (delete-region beg end)
               (--map (gb/kotlin--insert-import-statement it)
-                    (--filter (gb/kotlin--naive-check-use-of-fqn (car it)) imported-id-fqn-pairs))))))
+                     (--filter (gb/kotlin--naive-check-use-of-fqn (car it)) imported-id-fqn-pairs))))))
     (message "NOT in kotlin mode")))
 
 (defun gb/kotlin-kill-full-qualified-class-name-at-point ()
