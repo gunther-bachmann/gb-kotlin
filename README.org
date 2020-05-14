@@ -1,0 +1,61 @@
+#+title: gb-kotlin
+
+* Purpose
+
+  This package is a collection of tools to make developing [[https://kotlinlang.org/][kotlin]] within [[https://www.gnu.org/software/emacs/][emacs]] more convenient. It is designed to work in conjunction with
+  [[https://magit.vc/][magit]], [[https://github.com/Emacs-Kotlin-Mode-Maintainers/kotlin-mode][kotlin-mode]] and [[https://github.com/joaotavora/eglot][eglot]] using the [[https://github.com/fwcd/kotlin-language-server][kotlin-language-server]]. The functions are designed to fill some gaps which I personally
+  miss (as of today). These functions are not mature enough to be bundled in a package, but that may happen some day.
+
+** Features
+   - Kill fully qualified class name of class under point into the kill ring
+   - Rewrite import section, sorting and trying to identify and remove unused imports
+
+     This functions works on text and does not make use of the ast or semantics. It uses simple heuristics to check whether a symbol
+     imported is actually used.
+
+   - Add import for symbol under point
+
+     All available imports are kept in a list (actually hash-map) and are not based on any classpath / runtime discovery. If a symbols can
+     be imported from multiple packages / namespaces, a helm based selection is used.
+
+     This list is populated based on all imports that are currently used within the project. The project root used is the git dir as
+     identified by [[https://magit.vc/][magit]]. Thus, this function is not very useful on an (nearly) empty project.
+
+   - Add imports from a predefined list (e.g. testing with [[https://mockk.io/][mockk]])
+
+     There are some static predefined lists of imports (which are incomplete but useful) that can be inserted to allow better completion of
+     relevant symbols using eglot in combination with kotlin-language-server
+
+* Installation
+
+  Since it is not a published package on melpa (yet) the installation is manual.
+
+  Clone the repository via ~git clone https://github.com/gunther-bachmann/gb-kotlin~, and add the following to your init file:
+  #+begin_src emacs-lisp
+    (use-package gb-kotlin
+      :after (kotlin-mode)
+      :load-path "<your path to gb-kotlin comes here>")
+  #+end_src
+
+  If you are not using [[https://github.com/jwiegley/use-package][use-package]], add the following:
+  #+begin_src emacs-lisp
+    (add-to-list 'load-path "<your path to gb-kotlin comes here>")
+    (require 'gb-kotlin)
+  #+end_src
+
+  You may want to bind the functions to some key combination:
+  #+begin_src emacs-lisp
+    (bind-key "C-c M-w"   #'gb/kotlin-kill-full-qualified-class-name-at-point kotlin-mode-map)
+    (bind-key "C-c / i i" #'gb/kotlin-import-at-point kotlin-mode-map)
+    (bind-key "C-c / i t" #'gb/kotlin-import-test-insert kotlin-mode-map)
+    (bind-key "C-c / i s" #'gb/kotlin-import-stdlib-insert kotlin-mode-map)
+    (bind-key "C-c / i r" #'gb/kotlin-rewrite-import-region kotlin-mode-map)
+    (bind-key "C-c / i l" #'gb/kotlin-import-search-and-insert kotlin-mode-map)
+  #+end_src
+
+* Usage
+
+** ~gb/kotlin-kill-full-qualified-class-name-at-point~
+
+   Use word at point and package definition to put the fully qualified name into the kill ring. It could be pasted into a gradle test command or
+   an import statement.
