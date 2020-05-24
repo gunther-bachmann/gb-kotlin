@@ -4,7 +4,9 @@
 
   This package is a collection of tools to make developing [[https://kotlinlang.org/][kotlin]] within [[https://www.gnu.org/software/emacs/][emacs]] more convenient. It is designed to work in conjunction with
   [[https://magit.vc/][magit]], [[https://github.com/Emacs-Kotlin-Mode-Maintainers/kotlin-mode][kotlin-mode]] and [[https://github.com/joaotavora/eglot][eglot]] using the [[https://github.com/fwcd/kotlin-language-server][kotlin-language-server]]. The functions are designed to fill some gaps which I personally
-  miss (as of today). These functions are not mature enough to be bundled in a package, but that may happen some day.
+  miss (as of today). Some functions are available only if [[https://github.com/zenozeng/yafolding.el][yafolding]] is installed.
+
+  These functions are not mature enough to be bundled in a package, but that may happen some day.
 
 ** Features
    - Kill fully qualified class name of class under point into the kill ring
@@ -26,6 +28,8 @@
      There are some static predefined lists of imports (which are incomplete but useful) that can be inserted to allow better completion of
      relevant symbols using eglot in combination with kotlin-language-server
 
+   - Fold/Unfold import section (from point on), using [[https://github.com/zenozeng/yafolding.el][yafolding]].
+
 * Installation
 
   Since it is not a published package on melpa (yet) the installation is manual.
@@ -33,25 +37,27 @@
   Clone the repository via ~git clone https://github.com/gunther-bachmann/gb-kotlin~, and add the following to your init file:
   #+begin_src emacs-lisp
     (use-package gb-kotlin
-      :after (kotlin-mode)
-      :load-path "<your path to gb-kotlin comes here>")
+      :load-path "~/repo/gb-kotlin"
+      :after (kotlin-mode magit yafolding)
+      :hook (kotlin-mode . gb/kotlin-run-hooks)
+      :bind (:map kotlin-mode-map
+                  ( "C-c M-w" .   gb/kotlin-kill-full-qualified-class-name-at-point)
+                  ( "C-c / t i" . gb/kotlin-toggle-fold-import-section) ;; toggle import
+                  ( "C-c / i i" . gb/kotlin-import-at-point) ;; import insert
+                  ( "C-c / i t" . gb/kotlin-import-test-insert) ;; import test
+                  ( "C-c / i s" . gb/kotlin-import-stdlib-insert) ;; import stdlib
+                  ( "C-c / i r" . gb/kotlin-rewrite-import-region) ;; import rewrite
+                  ( "C-c / i l" . gb/kotlin-import-search-and-insert))) ;; import lookup
   #+end_src
 
-  If you are not using [[https://github.com/jwiegley/use-package][use-package]], add the following:
+  If you are not using [[https://github.com/jwiegley/use-package][use-package]], make sure that the required packages are loaded and add the following:
   #+begin_src emacs-lisp
-    (add-to-list 'load-path "<your path to gb-kotlin comes here>")
+    (push "<your path to gb-kotlin comes here>" load-path)
     (require 'gb-kotlin)
+    (push #'gb/kotlin-run-hooks kotlin-mode-hook)
   #+end_src
 
-  You may want to bind the functions to some key combination:
-  #+begin_src emacs-lisp
-    (bind-key "C-c M-w"   #'gb/kotlin-kill-full-qualified-class-name-at-point kotlin-mode-map)
-    (bind-key "C-c / i i" #'gb/kotlin-import-at-point kotlin-mode-map)
-    (bind-key "C-c / i t" #'gb/kotlin-import-test-insert kotlin-mode-map)
-    (bind-key "C-c / i s" #'gb/kotlin-import-stdlib-insert kotlin-mode-map)
-    (bind-key "C-c / i r" #'gb/kotlin-rewrite-import-region kotlin-mode-map)
-    (bind-key "C-c / i l" #'gb/kotlin-import-search-and-insert kotlin-mode-map)
-  #+end_src
+  You might additionally want to add some keybinding as noted in the ~use-package~ case.
 
 * Usage
 

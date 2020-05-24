@@ -37,6 +37,13 @@
 
 (require 'el-mock)
 
+(defgroup gb/kotlin nil "gb kotlin" :group 'kotlin)
+
+(defcustom gb/kotlin--fold-import-after-open t
+  "fold the import section upon switching to kotlin mode"
+  :group 'gb/kotlin
+  :type 'boolean)
+
 (defun gb/kotlin--file-imports-all (file)
   "get all kotlin import lines for the given file"
   (split-string
@@ -602,6 +609,12 @@
             (setq end (line-end-position)))
           (next-line))) ; using next-line instead of forward-line, for issue#23
       (list beg end))))
+
+(defun gb/kotlin-run-hooks ()
+  "hook to run all necessary functions after switchin to kotlin mode"
+  (when (and gb/kotlin--fold-import-after-open
+             (fboundp #'gb/kotlin-toggle-fold-import-section))
+    (gb/kotlin-toggle-fold-import-section)))
 
 (provide 'gb-kotlin)
 ;;; gb-kotlin.el ends here
