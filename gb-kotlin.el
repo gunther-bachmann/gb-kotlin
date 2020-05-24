@@ -570,5 +570,38 @@
     (message fqn)
     (kill-new fqn)))
 
+
+(defun gb/kotlin--in-import-statement-line ()
+  (string-match-p "^import .*$" (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+
+(when
+  (package-installed-p 'yafolding)
+  (require 'yafolding)
+
+  (defun gb/kotlin-toggle-fold-import-section ()
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (search-forward-regexp "^import ")
+      (yafolding-toggle-element)))
+
+  ;; redefine yafolding to fold import sections
+  (defun yafolding-get-element-region ()
+    "Get '(beg end) of current element."
+    (let ((beg (line-end-position))
+          (end (line-end-position))
+          (indentation (current-indentation))
+          (in-import-section (gb/kotlin--in-import-statement-line)))
+      (save-excursion
+        (next-line)
+        (while (and (< (line-number-at-pos) (line-number-at-pos (point-max)))
+                    (or (> (current-indentation) indentation)
+                        (yafolding-should-ignore-current-line-p)
+                        (and in-import-section (gb/kotlin--in-import-statement-line))))
+          (unless (yafolding-should-ignore-current-line-p)
+            (setq end (line-end-position)))
+          (next-line))) ; using next-line instead of forward-line, for issue#23
+      (list beg end))))
+
 (provide 'gb-kotlin)
 ;;; gb-kotlin.el ends here
