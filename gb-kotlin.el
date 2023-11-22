@@ -396,7 +396,7 @@
   (let* ((id (car (reverse (split-string fqn "\\.")))))
     (gb/kotlin--naive-check-use-of-id id)))
 
-(defun* gb/kotlin--naive-check-use-of-id (id)
+(defun gb/kotlin--naive-check-use-of-id (id)
   "check whether this id is used"
   (save-excursion
     (goto-char (point-min))
